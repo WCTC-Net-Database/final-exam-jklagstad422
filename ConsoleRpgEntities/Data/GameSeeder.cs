@@ -11,6 +11,8 @@ public static class GameSeeder
 
         var entrance = new Room { Name = "Entrance", Description = "Start room" };
         var hall = new Room { Name = "Hallway", Description = "Dark hallway" };
+        context.SlashAbilities.Add(new SlashAbility());
+        context.SaveChanges();
 
         entrance.EastRoom = hall;
         hall.WestRoom = entrance;
