@@ -8,21 +8,13 @@ namespace ConsoleRpgEntities.Models.Characters.Monsters
         public int Id { get; set; }
         public string Name { get; set; }
         public int Health { get; set; }
-        public int AggressionLevel { get; set; }
+
+        public int Attack { get; set; }      // ✅ PROPERTY
         public string MonsterType { get; set; }
 
-        // Foreign key
         public int? RoomId { get; set; }
-
-        // Navigation property
         public virtual Room Room { get; set; }
 
-        protected Monster()
-        {
-
-        }
-
-        public abstract void Attack(ITargetable target);
-
+        public abstract void AttackTarget(ITargetable target); // ✅ METHOD
     }
 }

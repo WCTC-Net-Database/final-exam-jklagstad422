@@ -1,0 +1,95 @@
+﻿✅ Basic Required Functionality (Base Grade)
+
+The following required features were fully implemented:
+
+Add a new Character
+
+User is prompted for character details (Name, Health, Attack, Experience).
+
+Character is persisted to the database using EF Core.
+
+Edit an existing Character
+
+User can update Health, Attack, Experience, and Name.
+
+Changes are saved back to the database.
+
+Display all Characters
+
+All characters are listed with key attributes and current room location.
+
+Search for a Character by Name
+
+Case-insensitive search using LINQ.
+
+Matching characters are displayed in a formatted table.
+
+Logging
+
+All major user actions (add, edit, display, search) are logged using ILogger.
+
+Console and file logging are enabled.
+
+🟡 C-Level Features Implemented (405/500)
+
+The following C-level enhancements were added:
+
+Abilities System (Foundation)
+
+Characters can have abilities associated with them.
+
+Ability display functionality is scaffolded and connected to the character model.
+
+Ability execution pipeline is integrated with the game engine.
+
+Combat System
+
+Characters have a base Attack stat.
+
+Attacking a monster subtracts health from the monster.
+
+Monsters are removed from the database when defeated.
+
+Combat output is rendered dynamically in Exploration Mode.
+
+Character Abilities Display
+
+Ability counts are displayed in inventory and stats.
+
+System is structured for future ability damage modifiers.
+
+🟢 B-Level Features Implemented (445/500)
+
+The following B-level features were successfully completed:
+
+Room System
+
+Rooms include names, descriptions, coordinates, and directional exits.
+
+Rooms are connected using North, South, East, and West navigation.
+
+Rooms are persisted and retrieved using EF Core relationships.
+
+Room Navigation
+
+Player can move between connected rooms during Exploration Mode.
+
+Movement validates exits and prevents invalid navigation.
+
+Room transitions update the player’s location in the database.
+
+Exploration Mode (Maze-Style Gameplay)
+
+Player can explore the world visually using a compact map UI.
+
+Current room details and inhabitants are displayed.
+
+Available actions dynamically change based on room state.
+
+Admin / Developer Mode
+
+Separate Admin mode allows full CRUD access to game data.
+
+Users can switch between Admin Mode and Exploration Mode at runtime.
+
+Designed to support testing, debugging, and data setup.

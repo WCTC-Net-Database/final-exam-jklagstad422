@@ -1,152 +1,263 @@
+using System;
+using System.Linq;
 using ConsoleRpg.Models;
 using ConsoleRpgEntities.Data;
 using ConsoleRpgEntities.Models.Characters;
+using ConsoleRpgEntities.Models.Characters.Monsters;
+using ConsoleRpgEntities.Models.Abilities;
+using ConsoleRpgEntities.Models.Attributes;
 using ConsoleRpgEntities.Models.Rooms;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
-namespace ConsoleRpg.Services;
-
-/// <summary>
-/// Handles all player-related actions and interactions
-/// Separated from GameEngine to follow Single Responsibility Principle
-/// Returns ServiceResult objects to decouple from UI concerns
-/// </summary>
-public class PlayerService
+namespace ConsoleRpg.Services
 {
-    private readonly GameContext _context;
-    private readonly ILogger<PlayerService> _logger;
-
-    public PlayerService(GameContext context, ILogger<PlayerService> logger)
-    {
-        _context = context;
-        _logger = logger;
-    }
-
     /// <summary>
-    /// Move the player to a different room
+    /// Handles all player-related actions and interactions.
+    /// Returns ServiceResult objects to decouple logic from UI.
     /// </summary>
-    public ServiceResult<Room> MoveToRoom(Player player, Room currentRoom, int? roomId, string direction)
+    public class PlayerService
     {
-        try
+        private readonly GameContext _context;
+        private readonly ILogger<PlayerService> _logger;
+
+        public PlayerService(GameContext context, ILogger<PlayerService> logger)
         {
-            if (!roomId.HasValue)
-            {
-                return ServiceResult<Room>.Fail(
-                    $"[red]Cannot go {direction}[/]",
-                    $"[red]You cannot go {direction} from here - there is no exit in that direction.[/]");
-            }
-
-            var newRoom = _context.Rooms
-                .Include(r => r.Players)
-                .Include(r => r.Monsters)
-                .Include(r => r.NorthRoom)
-                .Include(r => r.SouthRoom)
-                .Include(r => r.EastRoom)
-                .Include(r => r.WestRoom)
-                .FirstOrDefault(r => r.Id == roomId.Value);
-
-            if (newRoom == null)
-            {
-                _logger.LogWarning("Attempted to move to non-existent room {RoomId}", roomId.Value);
-                return ServiceResult<Room>.Fail(
-                    $"[red]Room not found[/]",
-                    $"[red]Error: Room {roomId.Value} does not exist.[/]");
-            }
-
-            // Update player's room
-            player.RoomId = roomId.Value;
-            _context.SaveChanges();
-
-            _logger.LogInformation("Player {PlayerName} moved {Direction} to {RoomName}",
-                player.Name, direction, newRoom.Name);
-
-            return ServiceResult<Room>.Ok(
-                newRoom,
-                $"[green]→ {direction}[/]",
-                $"[green]You travel {direction} and arrive at {newRoom.Name}.[/]");
+            _context = context;
+            _logger = logger;
         }
-        catch (Exception ex)
+
+        // =====================================================
+        // ROOM NAVIGATION
+        // =====================================================
+        public ServiceResult<Room> MoveToRoom(
+            Player player,
+            Room currentRoom,
+            int? roomId,
+            string direction)
         {
-            _logger.LogError(ex, "Error moving player {PlayerName} to room {RoomId}", player.Name, roomId);
-            return ServiceResult<Room>.Fail(
-                "[red]Movement failed[/]",
-                $"[red]An error occurred while moving: {ex.Message}[/]");
+            try
+            {
+                if (player == null || currentRoom == null)
+                {
+                    return ServiceResult<Room>.Fail(
+                        "[red]Movement failed[/]",
+                        "[red]Invalid player or room state.[/]");
+                }
+
+                if (!roomId.HasValue)
+                {
+                    return ServiceResult<Room>.Fail(
+                        $"[red]Cannot go {direction}[/]",
+                        $"[red]You cannot go {direction} from here.[/]");
+                }
+
+                var newRoom = _context.Rooms
+                    .Include(r => r.Players)
+                    .Include(r => r.Monsters)
+                    .Include(r => r.NorthRoom)
+                    .Include(r => r.SouthRoom)
+                    .Include(r => r.EastRoom)
+                    .Include(r => r.WestRoom)
+                    .FirstOrDefault(r => r.Id == roomId.Value);
+
+                if (newRoom == null)
+                {
+                    return ServiceResult<Room>.Fail(
+                        "[red]Room not found[/]",
+                        "[red]That room does not exist.[/]");
+                }
+
+                var trackedPlayer = _context.Players.First(p => p.Id == player.Id);
+                trackedPlayer.RoomId = newRoom.Id;
+
+                _context.SaveChanges();
+
+                _logger.LogInformation(
+                    "Player {Player} moved {Direction} to {Room}",
+                    trackedPlayer.Name, direction, newRoom.Name);
+
+                return ServiceResult<Room>.Ok(
+                    newRoom,
+                    $"[green]→ {direction}[/]",
+                    $"[green]You travel {direction} and arrive at {newRoom.Name}.[/]");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "MoveToRoom failed");
+
+                return ServiceResult<Room>.Fail(
+                    "[red]Movement failed[/]",
+                    $"[red]{ex.Message}[/]");
+            }
         }
-    }
 
-    /// <summary>
-    /// Show player character stats
-    /// </summary>
-    public ServiceResult ShowCharacterStats(Player player)
-    {
-        try
+        // =====================================================
+        // CHARACTER INFO
+        // =====================================================
+        public ServiceResult ShowCharacterStats(Player player)
         {
-            var output = $"[yellow]Character:[/] {player.Name}\n" +
-                        $"[green]Health:[/] {player.Health}\n" +
-                        $"[cyan]Experience:[/] {player.Experience}";
-
-            _logger.LogInformation("Displaying stats for player {PlayerName}", player.Name);
+            var output =
+                $"[yellow]Character:[/] {player.Name}\n" +
+                $"[green]Health:[/] {player.Health}\n" +
+                $"[cyan]Base Attack:[/] {player.Attack}\n" +
+                $"[blue]Experience:[/] {player.Experience}";
 
             return ServiceResult.Ok(
                 "[cyan]Viewing stats[/]",
                 output);
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error displaying stats for player {PlayerName}", player.Name);
-            return ServiceResult.Fail(
-                "[red]Error[/]",
-                $"[red]Failed to display stats: {ex.Message}[/]");
-        }
-    }
 
-    /// <summary>
-    /// Show player inventory and stats
-    /// </summary>
-    public ServiceResult ShowInventory(Player player)
-    {
-        try
+        // =====================================================
+        // INVENTORY
+        // =====================================================
+        public ServiceResult ShowInventory(Player player)
         {
-            var output = $"[magenta]Equipment:[/] {(player.Equipment != null ? "Equipped" : "None")}\n" +
-                        $"[blue]Abilities:[/] {player.Abilities?.Count ?? 0}";
-
-            _logger.LogInformation("Displaying inventory for player {PlayerName}", player.Name);
+            var output =
+                $"[magenta]Equipment:[/] {(player.Equipment != null ? "Equipped" : "None")}\n" +
+                $"[blue]Abilities:[/] {player.Abilities?.Count ?? 0}";
 
             return ServiceResult.Ok(
                 "[magenta]Viewing inventory[/]",
                 output);
         }
-        catch (Exception ex)
+
+        // =====================================================
+        // COMBAT – BASE ATTACK
+        // =====================================================
+        public ServiceResult AttackMonster()
         {
-            _logger.LogError(ex, "Error displaying inventory for player {PlayerName}", player.Name);
-            return ServiceResult.Fail(
-                "[red]Error[/]",
-                $"[red]Failed to display inventory: {ex.Message}[/]");
+            try
+            {
+                var player = _context.Players.FirstOrDefault();
+                if (player == null || player.RoomId == null)
+                {
+                    return ServiceResult.Fail(
+                        "[red]Attack failed[/]",
+                        "[red]Player or room not found.[/]");
+                }
+
+                var monster = _context.Monsters
+                    .FirstOrDefault(m => m.RoomId == player.RoomId);
+
+                if (monster == null)
+                {
+                    return ServiceResult.Fail(
+                        "[yellow]No monsters[/]",
+                        "[yellow]There are no monsters here.[/]");
+                }
+
+                int damage = Math.Max(player.Attack, 1);
+                monster.Health -= damage;
+
+                string output =
+                    $"[green]You attack the {monster.Name} for {damage} damage![/]\n";
+
+                if (monster.Health <= 0)
+                {
+                    output += $"[bold red]{monster.Name} has been defeated![/]\n";
+                    _context.Monsters.Remove(monster);
+                }
+                else
+                {
+                    output +=
+                        $"[yellow]{monster.Name} HP remaining: {monster.Health}[/]\n";
+                }
+
+                _context.SaveChanges();
+
+                _logger.LogInformation(
+                    "Player attacked {Monster} for {Damage}",
+                    monster.Name, damage);
+
+                return ServiceResult.Ok(
+                    "[red]Attack![/]",
+                    output);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "AttackMonster failed");
+
+                return ServiceResult.Fail(
+                    "[red]Attack failed[/]",
+                    $"[red]{ex.Message}[/]");
+            }
         }
-    }
 
-    /// <summary>
-    /// TODO: Implement monster attack logic
-    /// </summary>
-    public ServiceResult AttackMonster()
-    {
-        _logger.LogInformation("Attack monster feature called (not yet implemented)");
-        return ServiceResult.Ok(
-            "[yellow]Attack (TODO)[/]",
-            "[yellow]TODO: Implement attack logic - students will complete this feature.[/]");
-        // Students will implement this
-    }
+        // =====================================================
+        // COMBAT – ABILITY ATTACK (ABILITY HAS OWN ATTACK)
+        // =====================================================
+        public ServiceResult UseAbilityOnMonster()
+        {
+            try
+            {
+                var player = _context.Players
+                    .Include(p => p.Abilities)
+                    .FirstOrDefault();
 
-    /// <summary>
-    /// TODO: Implement ability usage logic
-    /// </summary>
-    public ServiceResult UseAbilityOnMonster()
-    {
-        _logger.LogInformation("Use ability feature called (not yet implemented)");
-        return ServiceResult.Ok(
-            "[yellow]Ability (TODO)[/]",
-            "[yellow]TODO: Implement ability usage - students will complete this feature.[/]");
-        // Students will implement this
+                if (player == null || player.RoomId == null)
+                {
+                    return ServiceResult.Fail(
+                        "[red]Ability failed[/]",
+                        "[red]Player or room not found.[/]");
+                }
+
+                if (player.Abilities == null || !player.Abilities.Any())
+                {
+                    return ServiceResult.Fail(
+                        "[yellow]No abilities[/]",
+                        "[yellow]You do not have any abilities to use.[/]");
+                }
+
+                var monster = _context.Monsters
+                    .FirstOrDefault(m => m.RoomId == player.RoomId);
+
+                if (monster == null)
+                {
+                    return ServiceResult.Fail(
+                        "[yellow]No monster[/]",
+                        "[yellow]There is no monster to target.[/]");
+                }
+
+                // Simple selection: first ability
+                var ability = player.Abilities.First();
+
+                int damage = Math.Max(ability.Attack, 1);
+                monster.Health -= damage;
+
+                string output =
+                    $"[cyan]You use {ability.Name}![/]\n" +
+                    $"[green]It deals {damage} damage to {monster.Name}![/]\n";
+
+                if (monster.Health <= 0)
+                {
+                    output += $"[bold red]{monster.Name} has been defeated![/]\n";
+                    _context.Monsters.Remove(monster);
+                }
+                else
+                {
+                    output +=
+                        $"[yellow]{monster.Name} HP remaining: {monster.Health}[/]\n";
+                }
+
+                _context.SaveChanges();
+
+                _logger.LogInformation(
+                    "Player used ability {Ability} on {Monster} for {Damage}",
+                    ability.Name, monster.Name, damage);
+
+                return ServiceResult.Ok(
+                    "[blue]Ability used![/]",
+                    output);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "UseAbilityOnMonster failed");
+
+                return ServiceResult.Fail(
+                    "[red]Ability failed[/]",
+                    $"[red]{ex.Message}[/]");
+            }
+        }
     }
 }

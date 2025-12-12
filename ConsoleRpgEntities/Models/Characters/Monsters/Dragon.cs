@@ -2,14 +2,14 @@
 
 namespace ConsoleRpgEntities.Models.Characters.Monsters
 {
-    public class Goblin : Monster
+    public class Dragon : Monster
     {
-        public Goblin()
+        public Dragon()
         {
-            Name = "Goblin";
-            Health = 25;
-            Attack = 5;
-            MonsterType = "Goblin";
+            Name = "Dragon";
+            Health = 200;
+            Attack = 25;
+            MonsterType = "Dragon";
         }
 
         public override void AttackTarget(ITargetable target)

@@ -1,15 +1,12 @@
 using ConsoleRpgEntities.Data;
 using ConsoleRpgEntities.Models.Characters;
+using ConsoleRpgEntities.Models.Rooms;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Spectre.Console;
 
 namespace ConsoleRpg.Services;
 
-/// <summary>
-/// Handles all admin/developer CRUD operations and advanced queries
-/// Separated from GameEngine to follow Single Responsibility Principle
-/// </summary>
 public class AdminService
 {
     private readonly GameContext _context;
@@ -21,19 +18,16 @@ public class AdminService
         _logger = logger;
     }
 
-    #region Basic CRUD Operations
-
-    /// <summary>
-    /// Add a new character to the database
-    /// </summary>
+    // =====================================================
+    // BASIC CRUD
+    // =====================================================
     public void AddCharacter()
     {
         try
         {
-            _logger.LogInformation("User selected Add Character");
             AnsiConsole.MarkupLine("[yellow]=== Add New Character ===[/]");
 
-            var name = AnsiConsole.Ask<string>("Enter character [green]name[/]:");
+            var name = AnsiConsole.Ask<string>("Enter [green]name[/]:");
             var health = AnsiConsole.Ask<int>("Enter [green]health[/]:");
             var experience = AnsiConsole.Ask<int>("Enter [green]experience[/]:");
 
@@ -47,362 +41,208 @@ public class AdminService
             _context.Players.Add(player);
             _context.SaveChanges();
 
-            _logger.LogInformation("Character {Name} added to database with Id {Id}", name, player.Id);
-            AnsiConsole.MarkupLine($"[green]Character '{name}' added successfully![/]");
-            Thread.Sleep(1000);
+            // Ensure player starts in a room
+            var firstRoom = _context.Rooms.FirstOrDefault();
+            if (firstRoom != null)
+            {
+                player.RoomId = firstRoom.Id;
+                _context.SaveChanges();
+            }
+
+            AnsiConsole.MarkupLine($"[green]Character '{name}' created successfully![/]");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error adding character");
-            AnsiConsole.MarkupLine($"[red]Error adding character: {ex.Message}[/]");
-            PressAnyKey();
+            AnsiConsole.MarkupLine($"[red]{ex.Message}[/]");
+            Pause();
         }
     }
 
-    /// <summary>
-    /// Edit an existing character's properties
-    /// </summary>
     public void EditCharacter()
     {
-        try
+        var id = AnsiConsole.Ask<int>("Enter character ID:");
+        var player = _context.Players.Find(id);
+
+        if (player == null)
         {
-            _logger.LogInformation("User selected Edit Character");
-            AnsiConsole.MarkupLine("[yellow]=== Edit Character ===[/]");
-
-            var id = AnsiConsole.Ask<int>("Enter character [green]ID[/] to edit:");
-
-            var player = _context.Players.Find(id);
-            if (player == null)
-            {
-                _logger.LogWarning("Character with Id {Id} not found", id);
-                AnsiConsole.MarkupLine($"[red]Character with ID {id} not found.[/]");
-                return;
-            }
-
-            AnsiConsole.MarkupLine($"Editing: [cyan]{player.Name}[/]");
-
-            if (AnsiConsole.Confirm("Update name?"))
-            {
-                player.Name = AnsiConsole.Ask<string>("Enter new [green]name[/]:");
-            }
-
-            if (AnsiConsole.Confirm("Update health?"))
-            {
-                player.Health = AnsiConsole.Ask<int>("Enter new [green]health[/]:");
-            }
-
-            if (AnsiConsole.Confirm("Update experience?"))
-            {
-                player.Experience = AnsiConsole.Ask<int>("Enter new [green]experience[/]:");
-            }
-
-            _context.SaveChanges();
-
-            _logger.LogInformation("Character {Name} (Id: {Id}) updated", player.Name, player.Id);
-            AnsiConsole.MarkupLine($"[green]Character '{player.Name}' updated successfully![/]");
-            Thread.Sleep(1000);
+            AnsiConsole.MarkupLine("[red]Character not found[/]");
+            return;
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error editing character");
-            AnsiConsole.MarkupLine($"[red]Error editing character: {ex.Message}[/]");
-            PressAnyKey();
-        }
+
+        if (AnsiConsole.Confirm("Update name?"))
+            player.Name = AnsiConsole.Ask<string>("New name:");
+
+        if (AnsiConsole.Confirm("Update health?"))
+            player.Health = AnsiConsole.Ask<int>("New health:");
+
+        if (AnsiConsole.Confirm("Update experience?"))
+            player.Experience = AnsiConsole.Ask<int>("New experience:");
+
+        _context.SaveChanges();
+        AnsiConsole.MarkupLine("[green]Character updated[/]");
     }
 
-    /// <summary>
-    /// Display all characters in the database
-    /// </summary>
     public void DisplayAllCharacters()
     {
-        try
+        var players = _context.Players.Include(p => p.Room).ToList();
+
+        if (!players.Any())
         {
-            _logger.LogInformation("User selected Display All Characters");
-            AnsiConsole.MarkupLine("[yellow]=== All Characters ===[/]");
-
-            var players = _context.Players.Include(p => p.Room).ToList();
-
-            if (!players.Any())
-            {
-                AnsiConsole.MarkupLine("[red]No characters found.[/]");
-            }
-            else
-            {
-                var table = new Table();
-                table.AddColumn("ID");
-                table.AddColumn("Name");
-                table.AddColumn("Health");
-                table.AddColumn("Experience");
-                table.AddColumn("Location");
-
-                foreach (var player in players)
-                {
-                    table.AddRow(
-                        player.Id.ToString(),
-                        player.Name,
-                        player.Health.ToString(),
-                        player.Experience.ToString(),
-                        player.Room?.Name ?? "Unknown"
-                    );
-                }
-
-                AnsiConsole.Write(table);
-            }
+            AnsiConsole.MarkupLine("[red]No characters found[/]");
+            return;
         }
-        catch (Exception ex)
+
+        var table = new Table();
+        table.AddColumn("ID");
+        table.AddColumn("Name");
+        table.AddColumn("Health");
+        table.AddColumn("XP");
+        table.AddColumn("Room");
+
+        foreach (var p in players)
         {
-            _logger.LogError(ex, "Error displaying all characters");
-            AnsiConsole.MarkupLine($"[red]Error displaying characters: {ex.Message}[/]");
+            table.AddRow(
+                p.Id.ToString(),
+                p.Name,
+                p.Health.ToString(),
+                p.Experience.ToString(),
+                p.Room?.Name ?? "None");
         }
+
+        AnsiConsole.Write(table);
     }
 
-    /// <summary>
-    /// Search for characters by name
-    /// </summary>
     public void SearchCharacterByName()
     {
+        var search = AnsiConsole.Ask<string>("Search name:");
+
+        var results = _context.Players
+            .Include(p => p.Room)
+            .Where(p => p.Name.ToLower().Contains(search.ToLower()))
+            .ToList();
+
+        if (!results.Any())
+        {
+            AnsiConsole.MarkupLine("[red]No matches found[/]");
+            return;
+        }
+
+        foreach (var p in results)
+        {
+            AnsiConsole.MarkupLine(
+                $"[green]{p.Name}[/] | HP: {p.Health} | Room: {p.Room?.Name ?? "None"}");
+        }
+    }
+
+    // =====================================================
+    // B-LEVEL REQUIRED FEATURE
+    // =====================================================
+    public void AddRoom()
+    {
         try
         {
-            _logger.LogInformation("User selected Search Character");
-            AnsiConsole.MarkupLine("[yellow]=== Search Character ===[/]");
+            AnsiConsole.MarkupLine("[yellow]=== Add New Room ===[/]");
 
-            var searchName = AnsiConsole.Ask<string>("Enter character [green]name[/] to search:");
+            var name = AnsiConsole.Ask<string>("Room name:");
+            var description = AnsiConsole.Ask<string>("Room description:");
 
-            var players = _context.Players
-                .Include(p => p.Room)
-                .Where(p => p.Name.ToLower().Contains(searchName.ToLower()))
-                .ToList();
-
-            if (!players.Any())
+            var room = new Room
             {
-                _logger.LogInformation("No characters found matching '{SearchName}'", searchName);
-                AnsiConsole.MarkupLine($"[red]No characters found matching '{searchName}'.[/]");
-            }
-            else
+                Name = name,
+                Description = description
+            };
+
+            _context.Rooms.Add(room);
+            _context.SaveChanges();
+
+            AnsiConsole.MarkupLine($"[green]Room '{room.Name}' created (ID {room.Id})[/]");
+
+            // Optional connection
+            if (_context.Rooms.Count() > 1 &&
+                AnsiConsole.Confirm("Connect this room to an existing room?"))
             {
-                _logger.LogInformation("Found {Count} character(s) matching '{SearchName}'", players.Count, searchName);
+                var rooms = _context.Rooms.ToList();
 
                 var table = new Table();
                 table.AddColumn("ID");
                 table.AddColumn("Name");
-                table.AddColumn("Health");
-                table.AddColumn("Experience");
-                table.AddColumn("Location");
 
-                foreach (var player in players)
-                {
-                    table.AddRow(
-                        player.Id.ToString(),
-                        player.Name,
-                        player.Health.ToString(),
-                        player.Experience.ToString(),
-                        player.Room?.Name ?? "Unknown"
-                    );
-                }
+                foreach (var r in rooms)
+                    table.AddRow(r.Id.ToString(), r.Name);
 
                 AnsiConsole.Write(table);
+
+                var targetId = AnsiConsole.Ask<int>("Enter room ID to connect to:");
+                var target = _context.Rooms.Find(targetId);
+
+                if (target != null)
+                {
+                    var direction = AnsiConsole.Prompt(
+                        new SelectionPrompt<string>()
+                            .Title("Direction from existing room")
+                            .AddChoices("North", "South", "East", "West"));
+
+                    switch (direction)
+                    {
+                        case "North":
+                            target.NorthRoomId = room.Id;
+                            room.SouthRoomId = target.Id;
+                            break;
+                        case "South":
+                            target.SouthRoomId = room.Id;
+                            room.NorthRoomId = target.Id;
+                            break;
+                        case "East":
+                            target.EastRoomId = room.Id;
+                            room.WestRoomId = target.Id;
+                            break;
+                        case "West":
+                            target.WestRoomId = room.Id;
+                            room.EastRoomId = target.Id;
+                            break;
+                    }
+
+                    _context.SaveChanges();
+                    AnsiConsole.MarkupLine("[green]Rooms connected[/]");
+                }
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error searching for characters");
-            AnsiConsole.MarkupLine($"[red]Error searching characters: {ex.Message}[/]");
+            _logger.LogError(ex, "Error adding room");
+            AnsiConsole.MarkupLine($"[red]{ex.Message}[/]");
+            Pause();
         }
     }
 
-    #endregion
-
-    #region C-Level Requirements
-
-    /// <summary>
-    /// TODO: Implement this method
-    /// Requirements:
-    /// - Display a list of existing characters
-    /// - Prompt user to select a character (by ID)
-    /// - Display a list of available abilities from the database
-    /// - Prompt user to select an ability to add
-    /// - Associate the ability with the character using the many-to-many relationship
-    /// - Save changes to the database
-    /// - Display confirmation message with the character name and ability name
-    /// - Log the operation
-    /// </summary>
+    // =====================================================
+    // PLACEHOLDERS (NOT REQUIRED FOR B)
+    // =====================================================
     public void AddAbilityToCharacter()
     {
-        _logger.LogInformation("User selected Add Ability to Character");
-        AnsiConsole.MarkupLine("[yellow]=== Add Ability to Character ===[/]");
-
-        // TODO: Implement this method
-        AnsiConsole.MarkupLine("[red]This feature is not yet implemented.[/]");
-        AnsiConsole.MarkupLine("[yellow]TODO: Allow users to add abilities to existing characters.[/]");
-
-        PressAnyKey();
+        AnsiConsole.MarkupLine("[yellow]Ability management not implemented[/]");
+        Pause();
     }
 
-    /// <summary>
-    /// TODO: Implement this method
-    /// Requirements:
-    /// - Prompt the user to select a character (by ID or name)
-    /// - Retrieve the character and their abilities from the database (use Include or lazy loading)
-    /// - Display the character's name and basic info
-    /// - Display all abilities associated with that character in a formatted table
-    /// - For each ability, show: Name, Description, and any other relevant properties (e.g., Damage, Distance for ShoveAbility)
-    /// - Handle the case where the character has no abilities
-    /// - Log the operation
-    /// </summary>
     public void DisplayCharacterAbilities()
     {
-        _logger.LogInformation("User selected Display Character Abilities");
-        AnsiConsole.MarkupLine("[yellow]=== Display Character Abilities ===[/]");
-
-        // TODO: Implement this method
-        AnsiConsole.MarkupLine("[red]This feature is not yet implemented.[/]");
-        AnsiConsole.MarkupLine("[yellow]TODO: Display all abilities for a selected character.[/]");
-
-        PressAnyKey();
+        AnsiConsole.MarkupLine("[yellow]Ability display not implemented[/]");
+        Pause();
     }
 
-    #endregion
-
-    #region B-Level Requirements
-
-    /// <summary>
-    /// TODO: Implement this method
-    /// Requirements:
-    /// - Prompt user for room name
-    /// - Prompt user for room description
-    /// - Optionally prompt for navigation (which rooms connect in which directions)
-    /// - Create a new Room entity
-    /// - Save to the database
-    /// - Display confirmation with room details
-    /// - Log the operation
-    /// </summary>
-    public void AddRoom()
-    {
-        _logger.LogInformation("User selected Add Room");
-        AnsiConsole.MarkupLine("[yellow]=== Add New Room ===[/]");
-
-        // TODO: Implement this method
-        AnsiConsole.MarkupLine("[red]This feature is not yet implemented.[/]");
-        AnsiConsole.MarkupLine("[yellow]TODO: Allow users to create new rooms and connect them to the world.[/]");
-
-        PressAnyKey();
-    }
-
-    /// <summary>
-    /// TODO: Implement this method
-    /// Requirements:
-    /// - Display a list of all rooms
-    /// - Prompt user to select a room (by ID or name)
-    /// - Retrieve room from database with related data (Include Players and Monsters)
-    /// - Display room name, description, and exits
-    /// - Display list of all players in the room (or message if none)
-    /// - Display list of all monsters in the room (or message if none)
-    /// - Handle case where room is empty gracefully
-    /// - Log the operation
-    /// </summary>
     public void DisplayRoomDetails()
     {
-        _logger.LogInformation("User selected Display Room Details");
-        AnsiConsole.MarkupLine("[yellow]=== Display Room Details ===[/]");
-
-        // TODO: Implement this method
-        AnsiConsole.MarkupLine("[red]This feature is not yet implemented.[/]");
-        AnsiConsole.MarkupLine("[yellow]TODO: Display detailed information about a room and its inhabitants.[/]");
-
-        PressAnyKey();
+        AnsiConsole.MarkupLine("[yellow]Room details not implemented[/]");
+        Pause();
     }
 
-    #endregion
-
-    #region A-Level Requirements
-
-    /// <summary>
-    /// TODO: Implement this method
-    /// Requirements:
-    /// - Display list of all rooms
-    /// - Prompt user to select a room
-    /// - Display a menu of attributes to filter by (Health, Name, Experience, etc.)
-    /// - Prompt user for filter criteria
-    /// - Query the database for characters in that room matching the criteria
-    /// - Display matching characters with relevant details in a formatted table
-    /// - Handle case where no characters match
-    /// - Log the operation
-    /// </summary>
-    public void ListCharactersInRoomByAttribute()
+    // =====================================================
+    // HELPERS
+    // =====================================================
+    private void Pause()
     {
-        _logger.LogInformation("User selected List Characters in Room by Attribute");
-        AnsiConsole.MarkupLine("[yellow]=== List Characters in Room by Attribute ===[/]");
-
-        // TODO: Implement this method
-        AnsiConsole.MarkupLine("[red]This feature is not yet implemented.[/]");
-        AnsiConsole.MarkupLine("[yellow]TODO: Find characters in a room matching specific criteria.[/]");
-
-        PressAnyKey();
-    }
-
-    /// <summary>
-    /// TODO: Implement this method
-    /// Requirements:
-    /// - Query database for all rooms
-    /// - For each room, retrieve all characters (Players) in that room
-    /// - Display in a formatted list grouped by room
-    /// - Show room name and description
-    /// - Under each room, list all characters with their details
-    /// - Handle rooms with no characters gracefully
-    /// - Consider using Spectre.Console panels or tables for nice formatting
-    /// - Log the operation
-    /// </summary>
-    public void ListAllRoomsWithCharacters()
-    {
-        _logger.LogInformation("User selected List All Rooms with Characters");
-        AnsiConsole.MarkupLine("[yellow]=== List All Rooms with Characters ===[/]");
-
-        // TODO: Implement this method
-        AnsiConsole.MarkupLine("[red]This feature is not yet implemented.[/]");
-        AnsiConsole.MarkupLine("[yellow]TODO: Group and display all characters by their rooms.[/]");
-
-        PressAnyKey();
-    }
-
-    /// <summary>
-    /// TODO: Implement this method
-    /// Requirements:
-    /// - Prompt user for equipment/item name to search for
-    /// - Query the database to find which character has this equipment
-    /// - Use Include to load Equipment -> Weapon/Armor -> Item
-    /// - Also load the character's Room information
-    /// - Display the character's name who has the equipment
-    /// - Display the room/location where the character is located
-    /// - Handle case where equipment is not found
-    /// - Handle case where equipment exists but isn't equipped by anyone
-    /// - Use Spectre.Console for nice formatting
-    /// - Log the operation
-    /// </summary>
-    public void FindEquipmentLocation()
-    {
-        _logger.LogInformation("User selected Find Equipment Location");
-        AnsiConsole.MarkupLine("[yellow]=== Find Equipment Location ===[/]");
-
-        // TODO: Implement this method
-        AnsiConsole.MarkupLine("[red]This feature is not yet implemented.[/]");
-        AnsiConsole.MarkupLine("[yellow]TODO: Find which character has specific equipment and where they are located.[/]");
-
-        PressAnyKey();
-    }
-
-    #endregion
-
-    #region Helper Methods
-
-    /// <summary>
-    /// Helper method for user interaction consistency
-    /// </summary>
-    private void PressAnyKey()
-    {
-        AnsiConsole.WriteLine();
         AnsiConsole.Markup("[dim]Press any key to continue...[/]");
         Console.ReadKey(true);
     }
-
-    #endregion
 }

@@ -1,20 +1,14 @@
-﻿using System.ComponentModel.DataAnnotations.Schema;
-
-namespace ConsoleRpgEntities.Models.Equipments;
-
-public class Equipment
+﻿
+namespace ConsoleRpgEntities.Models.Equipments
 {
-    public int Id { get; set; }
+    public class Equipment
+    {
+        public int Id { get; set; }
 
-    // SQL Server enforces cascading delete rules strictly
-    // so Entity Framework will assume DeleteBehavior.Cascade for relationships
-    public int? WeaponId { get; set; }  // Nullable to avoid cascade issues
-    public int? ArmorId { get; set; }   // Nullable to avoid cascade issues
+        public int? WeaponId { get; set; }
+        public int? ArmorId { get; set; }
 
-    // Navigation properties
-    [ForeignKey("WeaponId")]
-    public virtual Item Weapon { get; set; }
-
-    [ForeignKey("ArmorId")]
-    public virtual Item Armor { get; set; }
+        public virtual Item Weapon { get; set; }
+        public virtual Item Armor { get; set; }
+    }
 }

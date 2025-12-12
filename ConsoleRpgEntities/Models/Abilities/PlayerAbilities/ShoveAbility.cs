@@ -5,13 +5,19 @@ namespace ConsoleRpgEntities.Models.Abilities.PlayerAbilities
 {
     public class ShoveAbility : Ability
     {
-        public int Damage { get; set; }
         public int Distance { get; set; }
 
-        public override void Activate(IPlayer user, ITargetable target)
+        public ShoveAbility()
         {
-            // Shove ability logic
-            Console.WriteLine($"{user.Name} shoves {target.Name} back {Distance} feet, dealing {Damage} damage!");
+            Name = "Shove";
+            Attack = 10;
+            AbilityType = "ShoveAbility";
+            Distance = 2;
+        }
+
+        public override void Activate(Player user, ITargetable target)
+        {
+            target.Health -= Attack;
         }
     }
 }
