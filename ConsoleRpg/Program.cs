@@ -1,19 +1,20 @@
-﻿using ConsoleRpg.Services;
+﻿using ConsoleRpg;
+using ConsoleRpg.Services;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ConsoleRpg;
 
-public static class Program
+public class Program
 {
-    private static void Main(string[] args)
+    public static void Main(string[] args)
     {
-        var serviceCollection = new ServiceCollection();
-        Startup.ConfigureServices(serviceCollection);
+        var services = new ServiceCollection();
+        Startup.ConfigureServices(services);
 
-        var serviceProvider = serviceCollection.BuildServiceProvider();
+        var provider = services.BuildServiceProvider();
 
-        var gameEngine = serviceProvider.GetService<GameEngine>();
-        gameEngine?.Run();
+        var gameEngine = provider.GetRequiredService<GameEngine>();
+
+        gameEngine.Start(); // 🔑 THIS MUST RUN
     }
 }
-

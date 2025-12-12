@@ -1,9 +1,7 @@
-﻿using Castle.Core.Configuration;
-using ConsoleRpg.Helpers;
+﻿using ConsoleRpg.Helpers;
 using ConsoleRpg.Services;
 using ConsoleRpgEntities.Data;
 using ConsoleRpgEntities.Helpers;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -15,43 +13,62 @@ public static class Startup
 {
     public static void ConfigureServices(IServiceCollection services)
     {
-        // Build configuration
         var configuration = ConfigurationHelper.GetConfiguration();
 
-        // Create and bind FileLoggerOptions
-        var fileLoggerOptions = new NReco.Logging.File.FileLoggerOptions();
+        // ---------------------------
+        // Logging
+        // ---------------------------
+        var fileLoggerOptions = new FileLoggerOptions();
         configuration.GetSection("Logging:File").Bind(fileLoggerOptions);
 
-        // Configure logging
-        services.AddLogging(loggingBuilder =>
+        services.AddLogging(builder =>
         {
-            loggingBuilder.ClearProviders();
-            loggingBuilder.AddConfiguration(configuration.GetSection("Logging"));
+            builder.ClearProviders();
+            builder.AddConfiguration(configuration.GetSection("Logging"));
+            builder.AddConsole();
 
-            // Add Console logger
-            loggingBuilder.AddConsole();
-
-            // Add File logger using the correct constructor
-            var logFileName = "Logs/log.txt"; // Specify the log file path
-
-            loggingBuilder.AddProvider(new FileLoggerProvider(logFileName, fileLoggerOptions));
+            // IMPORTANT: Logs folder must exist
+            builder.AddProvider(
+                new FileLoggerProvider("Logs/log.txt", fileLoggerOptions));
         });
 
-        // Register DbContext with dependency injection
+        // ---------------------------
+        // DbContext (NO MODELS YET)
+        // ---------------------------
         var connectionString = configuration.GetConnectionString("DefaultConnection");
         services.AddDbContext<GameContext>(options =>
         {
             ConfigurationHelper.ConfigureDbContextOptions(options, connectionString);
         });
 
-
-        // Register your services
+        // ---------------------------
+        // Phase 1 Services ONLY
+        // ---------------------------
         services.AddTransient<GameEngine>();
-        services.AddTransient<MenuManager>();
-        services.AddTransient<PlayerService>();
-        services.AddTransient<AdminService>();
         services.AddSingleton<OutputManager>();
+        // ---------------------------
+        // Core helpers
+        // ---------------------------
+        services.AddSingleton<OutputManager>();
+        services.AddSingleton<MenuManager>();
+
+        // ---------------------------
+        // UI / World
+        // ---------------------------
         services.AddSingleton<MapManager>();
         services.AddSingleton<ExplorationUI>();
+
+        // ---------------------------
+        // Game services
+        // ---------------------------
+        services.AddTransient<PlayerService>();
+        services.AddTransient<AdminService>();
+
+        // ---------------------------
+        // Engine
+        // ---------------------------
+        services.AddTransient<GameEngine>();
+
     }
+
 }
