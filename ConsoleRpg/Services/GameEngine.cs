@@ -1,4 +1,5 @@
 ﻿using ConsoleRpg.Helpers;
+using ConsoleRpg.Services;
 using ConsoleRpgEntities.Data;
 using ConsoleRpgEntities.Models.Rooms;
 using Microsoft.EntityFrameworkCore;
@@ -21,11 +22,12 @@ public class GameEngine
         _admin = admin;
     }
 
-    // 🚫 NO override
-    // 🚫 NO inheritance
+    // =====================================================
+    // ENTRY POINT
+    // =====================================================
     public void Start()
     {
-        SeedIfEmpty();
+        SeedIfEmpty();   // 🔑 SEED ONCE, SAFELY
 
         while (true)
         {
@@ -33,6 +35,9 @@ public class GameEngine
         }
     }
 
+    // =====================================================
+    // ADMIN MENU HANDLER
+    // =====================================================
     private void HandleMenuChoice(string choice)
     {
         switch (choice?.ToUpper())
@@ -62,29 +67,41 @@ public class GameEngine
                 break;
 
             default:
-                Console.WriteLine("Invalid option");
+                Console.WriteLine("Invalid option.");
+                Console.ReadKey(true);
                 break;
         }
     }
 
+    // =====================================================
+    // SAFE ROOM SEEDING (NO CIRCULAR DEPENDENCY)
+    // =====================================================
     private void SeedIfEmpty()
     {
         if (_context.Rooms.Any())
             return;
 
-        var entrance = new Room { Name = "Entrance", Description = "Start room" };
-        var hall = new Room { Name = "Hallway", Description = "Dark hall" };
+        // STEP 1 — create rooms WITHOUT links
+        var entrance = new Room
+        {
+            Name = "Entrance",
+            Description = "The starting room"
+        };
 
-        entrance.EastRoom = hall;
-        hall.WestRoom = entrance;
-        _context.Rooms.AddRange(entrance, hall);
-        _context.SaveChanges();
+        var hallway = new Room
+        {
+            Name = "Hallway",
+            Description = "A dark hallway"
+        };
 
-        entrance.EastRoomId = hall.Id;
-        hall.WestRoomId = entrance.Id;
+        _context.Rooms.AddRange(entrance, hallway);
+        _context.SaveChanges();   // ✅ IDs generated here
 
-        _context.SaveChanges();
+        // STEP 2 — now link using IDs
+        entrance.EastRoomId = hallway.Id;
+        hallway.WestRoomId = entrance.Id;
 
+        _context.SaveChanges();   // ✅ SAFE
     }
-}
 
+}
