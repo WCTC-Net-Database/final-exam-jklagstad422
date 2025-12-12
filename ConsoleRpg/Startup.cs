@@ -13,62 +13,26 @@ public static class Startup
 {
     public static void ConfigureServices(IServiceCollection services)
     {
-        var configuration = ConfigurationHelper.GetConfiguration();
+        var config = ConfigurationHelper.GetConfiguration();
 
-        // ---------------------------
-        // Logging
-        // ---------------------------
-        var fileLoggerOptions = new FileLoggerOptions();
-        configuration.GetSection("Logging:File").Bind(fileLoggerOptions);
-
-        services.AddLogging(builder =>
+        services.AddLogging(b =>
         {
-            builder.ClearProviders();
-            builder.AddConfiguration(configuration.GetSection("Logging"));
-            builder.AddConsole();
-
-            // IMPORTANT: Logs folder must exist
-            builder.AddProvider(
-                new FileLoggerProvider("Logs/log.txt", fileLoggerOptions));
+            b.ClearProviders();
+            b.AddConsole();
+            b.AddProvider(new FileLoggerProvider("Logs/log.txt", new FileLoggerOptions()));
         });
 
-        // ---------------------------
-        // DbContext (NO MODELS YET)
-        // ---------------------------
-        var connectionString = configuration.GetConnectionString("DefaultConnection");
         services.AddDbContext<GameContext>(options =>
-        {
-            ConfigurationHelper.ConfigureDbContextOptions(options, connectionString);
-        });
+            ConfigurationHelper.ConfigureDbContextOptions(
+                options,
+                config.GetConnectionString("DefaultConnection")));
 
-        // ---------------------------
-        // Phase 1 Services ONLY
-        // ---------------------------
-        services.AddTransient<GameEngine>();
-        services.AddSingleton<OutputManager>();
-        // ---------------------------
-        // Core helpers
-        // ---------------------------
-        services.AddSingleton<OutputManager>();
         services.AddSingleton<MenuManager>();
-
-        // ---------------------------
-        // UI / World
-        // ---------------------------
         services.AddSingleton<MapManager>();
         services.AddSingleton<ExplorationUI>();
 
-        // ---------------------------
-        // Game services
-        // ---------------------------
-        services.AddTransient<PlayerService>();
-        services.AddTransient<AdminService>();
-
-        // ---------------------------
-        // Engine
-        // ---------------------------
-        services.AddTransient<GameEngine>();
-
+        services.AddScoped<PlayerService>();
+        services.AddScoped<AdminService>();
+        services.AddScoped<GameEngine>();
     }
-
 }

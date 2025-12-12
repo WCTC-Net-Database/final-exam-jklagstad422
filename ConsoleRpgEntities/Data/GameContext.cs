@@ -1,5 +1,4 @@
 ﻿using ConsoleRpgEntities.Models.Abilities;
-using ConsoleRpgEntities.Models.Abilities.PlayerAbilities;
 using ConsoleRpgEntities.Models.Characters;
 using ConsoleRpgEntities.Models.Characters.Monsters;
 using ConsoleRpgEntities.Models.Equipments;
@@ -10,100 +9,81 @@ namespace ConsoleRpgEntities.Data
 {
     public class GameContext : DbContext
     {
-        // ---------------------------
-        // DbSets
-        // ---------------------------
-        public DbSet<Player> Players { get; set; }
-        public DbSet<Monster> Monsters { get; set; }
-        public DbSet<Ability> Abilities { get; set; }
-        public DbSet<Equipment> Equipments { get; set; }
-        public DbSet<Room> Rooms { get; set; }
-
         public GameContext(DbContextOptions<GameContext> options)
-            : base(options)
-        {
-        }
+            : base(options) { }
 
         // ---------------------------
-        // Model Configuration
+        // CORE ENTITIES
         // ---------------------------
+        public DbSet<Player> Players => Set<Player>();
+        public DbSet<Room> Rooms => Set<Room>();
+        public DbSet<Monster> Monsters => Set<Monster>();
+
+        // ---------------------------
+        // ABILITIES (CONCRETE ONLY)
+        // ---------------------------
+        public DbSet<SlashAbility> SlashAbilities => Set<SlashAbility>();
+        // add more concrete abilities here if needed
+
+        // ---------------------------
+        // EQUIPMENT / ITEMS
+        // ---------------------------
+        public DbSet<Item> Items => Set<Item>();
+        public DbSet<Equipment> Equipments => Set<Equipment>();
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            // =====================================================
+            base.OnModelCreating(modelBuilder);
+
+            // ---------------------------
             // MONSTER INHERITANCE (TPH)
-            // =====================================================
+            // ---------------------------
             modelBuilder.Entity<Monster>()
                 .HasDiscriminator<string>("MonsterType")
                 .HasValue<Goblin>("Goblin")
                 .HasValue<Dragon>("Dragon");
 
-            // =====================================================
+            // ---------------------------
             // ABILITY INHERITANCE (TPH)
-            // =====================================================
+            // ---------------------------
             modelBuilder.Entity<Ability>()
                 .HasDiscriminator<string>("AbilityType")
-                .HasValue<ShoveAbility>("ShoveAbility");
+                .HasValue<SlashAbility>("Slash");
 
-            // =====================================================
-            // PLAYER ↔ ABILITY (MANY-TO-MANY)
-            // =====================================================
+            // ---------------------------
+            // PLAYER ↔ ABILITIES (M:M)
+            // ---------------------------
             modelBuilder.Entity<Player>()
                 .HasMany(p => p.Abilities)
                 .WithMany(a => a.Players)
                 .UsingEntity(j => j.ToTable("PlayerAbilities"));
 
-            // =====================================================
-            // ROOM ↔ PLAYER
-            // =====================================================
-            modelBuilder.Entity<Room>()
-                .HasMany(r => r.Players)
-                .WithOne(p => p.Room)
-                .HasForeignKey(p => p.RoomId)
-                .IsRequired(false)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            // =====================================================
-            // ROOM ↔ MONSTER
-            // =====================================================
-            modelBuilder.Entity<Room>()
-                .HasMany(r => r.Monsters)
-                .WithOne(m => m.Room)
-                .HasForeignKey(m => m.RoomId)
-                .IsRequired(false)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            // =====================================================
-            // 🔑 SELF-REFERENCING ROOM EXITS (REQUIRED)
-            // =====================================================
+            // ---------------------------
+            // ROOM ↔ ROOM (SELF-REFERENCING)
+            // ---------------------------
             modelBuilder.Entity<Room>()
                 .HasOne(r => r.NorthRoom)
                 .WithMany()
                 .HasForeignKey(r => r.NorthRoomId)
-                .OnDelete(DeleteBehavior.Restrict)
-                .IsRequired(false);
+                .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<Room>()
                 .HasOne(r => r.SouthRoom)
                 .WithMany()
                 .HasForeignKey(r => r.SouthRoomId)
-                .OnDelete(DeleteBehavior.Restrict)
-                .IsRequired(false);
+                .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<Room>()
                 .HasOne(r => r.EastRoom)
                 .WithMany()
                 .HasForeignKey(r => r.EastRoomId)
-                .OnDelete(DeleteBehavior.Restrict)
-                .IsRequired(false);
+                .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<Room>()
                 .HasOne(r => r.WestRoom)
                 .WithMany()
                 .HasForeignKey(r => r.WestRoomId)
-                .OnDelete(DeleteBehavior.Restrict)
-                .IsRequired(false);
-
-            base.OnModelCreating(modelBuilder);
+                .OnDelete(DeleteBehavior.Restrict);
         }
     }
 }

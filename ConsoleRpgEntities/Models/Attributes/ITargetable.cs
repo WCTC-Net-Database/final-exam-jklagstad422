@@ -2,6 +2,6 @@
 
 public interface ITargetable
 {
-    string Name { get; set; }
+    string Name { get; }
     int Health { get; set; }
 }
